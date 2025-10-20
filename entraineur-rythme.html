@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Allow loading styles/fonts from https and self to avoid blocking external CDNs (adjust if you need stricter policy) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: https:; script-src 'self' 'unsafe-inline' https:; worker-src 'self' blob: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com https:; font-src 'self' https: data:; img-src 'self' data: https:">
+    <title>🎵 Entraîneur de Rythme Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+            /* Note image sizing */
+            .note-img-palette { height: 2.25rem; object-fit: contain; }
+            .note-img-seq { height: 3rem; object-fit: contain; }
+        .material-symbols-outlined.icon-music{
+            font-variation-settings: 'FILL' 0, 'wght' 700, 'GRAD' 0, 'opsz' 48;
+            display:inline-block; vertical-align:middle; line-height:1; color:inherit;
+        }
+        .note-btn {
+            transition: all 0.2s;
+        }
+        .note-btn:hover {
+            transform: scale(1.05);
+        }
+        .note-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .note-display {
+            position: relative;
+        }
+        .note-display:hover .delete-btn {
+            opacity: 1;
+        }
+        .delete-btn {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-50 to-blue-50 min-h-screen p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl md:text-4xl font-bold text-center mb-6 text-purple-900">
+            🎵 Entraîneur de Rythme Pro
+        </h1>
+
+        <!-- Controls Bar -->
+        <div class="bg-white rounded-lg shadow-lg p-4 mb-6">
+            <div class="flex flex-wrap gap-4 items-center justify-between">
+                <div class="flex items-center gap-3 flex-1 min-w-64">
+                    <span class="font-semibold text-gray-700">⚙️ Tempo:</span>
+                    <input type="number" id="tempoInput" value="120" min="40" max="240" 
+                           class="border-2 border-purple-300 rounded-lg px-3 py-1 w-16 text-center font-bold">
+                    <span class="text-gray-600 text-sm">BPM</span>
+                    <input type="range" id="tempoSlider" value="120" min="40" max="240" class="flex-1">
+                </div>
+                <button id="metronomeBtn" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg">
+                    🔇 Métronome
+                </button>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap gap-3 mb-6">
+            <button id="randomBtn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-lg shadow-md">
+                🎲 Rythme aléatoire
+            </button>
+            <button id="exercisesBtn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md">
+                🎵 Exercices
+            </button>
+            <button id="saveBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md" disabled>
+                💾 Sauvegarder
+            </button>
+            <button id="exportBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg shadow-md">
+                ⬇️ Exporter
+            </button>
+            <button id="exportProjectBtn" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-4 rounded-lg shadow-md">
+                ⤓ Exporter → projet
+            </button>
+            <button id="viewExportsBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-900 font-bold py-2 px-4 rounded-lg shadow-md">
+                📂 Voir exports
+            </button>
+            <button id="importBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-900 font-bold py-2 px-4 rounded-lg shadow-md">
+                ⬆️ Importer
+            </button>
+            <input id="importFile" type="file" accept="application/json" style="display:none" />
+            <button id="loadBtn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-lg shadow-md" disabled>
+                📁 Charger (0)
+            </button>
+            <button id="loopBtn" class="bg-purple-400 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md">
+                🔁 Boucle OFF
+            </button>
+        </div>
+
+        <!-- Note Palette -->
+        <div class="bg-white rounded-lg shadow-lg p-4 md:p-6 mb-6">
+            <h2 class="text-xl md:text-2xl font-bold mb-4 text-gray-800">Palette de Notes</h2>
+            <div id="notePalette"></div>
+        </div>
+
+        <!-- Sequence Display -->
+        <div class="bg-white rounded-lg shadow-lg p-4 md:p-6 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl md:text-2xl font-bold text-gray-800">Votre Séquence</h2>
+                <div class="text-lg font-semibold text-purple-600" id="durationDisplay">0.00 / 8 temps</div>
+            </div>
+            
+            <div class="bg-gray-50 rounded-lg p-4 md:p-6 min-h-32 border-2 border-dashed border-gray-300" id="sequenceDisplay">
+                <div class="text-center text-gray-400 py-8">
+                    Créez votre rythme ou chargez un exercice
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <div class="bg-gray-200 rounded-full h-4 overflow-hidden">
+                    <div id="progressBar" class="bg-gradient-to-r from-purple-500 to-blue-500 h-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Play Controls -->
+        <div class="flex flex-wrap gap-4 justify-center">
+            <button id="playBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-lg shadow-lg" disabled>
+                ▶️ Jouer
+            </button>
+            <button id="stopBtn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-lg shadow-lg" disabled>
+                ⏹️ Arrêter
+            </button>
+            <button id="clearBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 md:py-4 px-6 md:px-8 rounded-lg shadow-lg" disabled>
+                🗑️ Effacer
+            </button>
+        </div>
+
+        <!-- Dialogs -->
+        <div id="dialogs"></div>
+    </div>
+
+    <script>
+        // State
+        let tempo = 120;
+        let sequence = [];
+        let isPlaying = false;
+        let loopEnabled = false;
+        let metronomeEnabled = false;
+        let savedRhythms = [];
+        let synth, metronome;
+        let loopTimeout;
+        let currentPart = null;
+        let metronomeId = null;
+
+        // Initialize Tone.js
+        synth = new Tone.Synth({
+            oscillator: { type: 'sine' },
+            envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 }
+        }).toDestination();
+
+        metronome = new Tone.Synth({
+            oscillator: { type: 'square' },
+            envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.05 }
+        }).toDestination();
+        metronome.volume.value = -10;
+
+        // Note types
+        const noteTypes = [
+            { name: 'Ronde', duration: 4, symbol: '𝅝', category: 'basic', color: 'from-blue-500 to-blue-600' },
+            { name: 'Blanche', duration: 2, symbol: '𝅗𝅥', category: 'basic', color: 'from-blue-500 to-blue-600' },
+            { name: 'Noire', duration: 1, symbol: '♩', category: 'basic', color: 'from-blue-500 to-blue-600' },
+            { name: 'Croche', duration: 0.5, symbol: '♪', category: 'basic', color: 'from-blue-500 to-blue-600' },
+            { name: 'Double-croche', duration: 0.25, symbol: '♬', category: 'basic', color: 'from-blue-500 to-blue-600' },
+            
+            { name: 'Blanche pointée', duration: 3, symbol: '𝅗𝅥.', category: 'dotted', color: 'from-green-500 to-green-600' },
+            { name: 'Noire pointée', duration: 1.5, symbol: '♩.', category: 'dotted', color: 'from-green-500 to-green-600' },
+            { name: 'Croche pointée', duration: 0.75, symbol: '♪.', category: 'dotted', color: 'from-green-500 to-green-600' },
+            { name: 'Double pointée', duration: 0.375, symbol: '♬.', category: 'dotted', color: 'from-green-500 to-green-600' },
+            { name: 'Triolet noires', duration: 2/3, symbol: '³♩', category: 'triplet', color: 'from-orange-500 to-orange-600' },
+            { name: 'Triolet croches', duration: 1/3, symbol: '³♪', category: 'triplet', color: 'from-orange-500 to-orange-600' },
+            { name: 'Triolet doubles', duration: 1/6, symbol: '³♬', category: 'triplet', color: 'from-orange-500 to-orange-600' },
+            { name: 'Triolet blanches', duration: 4/3, symbol: '³𝅗𝅥', category: 'triplet', color: 'from-orange-500 to-orange-600' },
+            { name: 'Silence ronde', duration: 4, symbol: '𝄻', isRest: true, category: 'rest', color: 'from-gray-500 to-gray-600' },
+            { name: 'Silence blanche', duration: 2, symbol: '𝄼', isRest: true, category: 'rest', color: 'from-gray-500 to-gray-600' },
+            { name: 'Silence noire', duration: 1, symbol: '𝄽', isRest: true, category: 'rest', color: 'from-gray-500 to-gray-600' },
+            { name: 'Silence croche', duration: 0.5, symbol: '𝄾', isRest: true, category: 'rest', color: 'from-gray-500 to-gray-600' },
+            { name: 'Silence double-croche', duration: 0.25, symbol: '𝄿', isRest: true, category: 'rest', color: 'from-gray-500 to-gray-600' },
+        ];
+
+        // Map note names to local images (in /img directory)
+        const noteImageMap = {
+            'Ronde': 'img/ronde.jpg',
+            'Blanche': 'img/blanche.jpg',
+            'Blanche pointée': 'img/blanche-pointé.jpg',
+            'Noire': 'img/noire.jpg',
+            'Noire pointée': 'img/noire-pointé.jpg',
+            'Croche': 'img/croche.jpg',
+            'Croche pointée': 'img/croche-pointé.jpg',
+            'Double-croche': 'img/double-croche.jpg',
+            'Double pointée': 'img/double-croche-pointé.jpg',
+            'Pause': 'img/pause.jpg',
+            'Demi-pause': 'img/demie-pause.jpg',
+            // Triolets
+            'Triolet noires': 'img/triolet de noire.jpg',
+            'Triolet croches': 'img/triolet de croche.jpg',
+            'Triolet doubles': 'img/triolet de double croche.jpg',
+            'Triolet blanches': 'img/triolet de blanche.jpg',
+            // Rests: use the specific images you added
+            'Silence ronde': 'img/pause.jpg',
+            'Silence blanche': 'img/demie-pause.jpg',
+            'Silence noire': 'img/soupir.jpg',
+            'Silence croche': 'img/silence.jpg',
+            'Silence double-croche': 'img/double-soupir.jpg',
+            // fallback images can be added here when available
+        };
+
+        const exercises = [
+            { name: '4 Noires (Base)', notes: ['Noire','Noire','Noire','Noire','Noire','Noire','Noire','Noire'] },
+            { name: 'Blanches', notes: ['Blanche','Blanche','Blanche','Blanche'] },
+            { name: 'Croches régulières', notes: Array(16).fill('Croche') },
+            { name: 'Syncope simple', notes: ['Noire','Croche','Croche','Noire','Noire pointée','Croche','Noire'] },
+            { name: 'Rythme rock', notes: ['Noire','Noire','Croche','Croche','Noire','Noire','Noire','Croche','Croche'] },
+            { name: 'Avec silences', notes: ['Noire','Silence noire','Croche','Croche','Noire','Noire','Silence croche','Croche','Noire'] },
+            { name: 'Triolets', notes: ['Triolet croches','Triolet croches','Triolet croches','Noire','Triolet croches','Triolet croches','Triolet croches','Noire','Blanche'] },
+            { name: 'Bossa Nova', notes: ['Noire','Croche','Croche','Noire pointée','Croche','Croche','Croche','Noire'] },
+            { name: 'Funk classique', notes: ['Croche','Silence croche','Croche','Croche','Silence croche','Croche','Croche','Silence croche','Croche','Croche','Silence croche','Croche','Noire'] },
+            { name: 'Double-croches rapides', notes: Array(32).fill('Double-croche') },
+            { name: 'Swing complexe', notes: ['Noire pointée','Croche','Noire','Noire pointée','Croche','Blanche'] }
+        ];
+
+        // Render note palette
+        function renderNotePalette() {
+            const palette = document.getElementById('notePalette');
+            const categories = ['basic', 'dotted', 'triplet', 'advanced', 'rest'];
+            const labels = {
+                basic: '🎼 Notes de base',
+                dotted: '• Notes pointées',
+                triplet: '³ Triolets',
+                advanced: '⚡ Avancées',
+                rest: '𝄽 Silences'
+            };
+
+            palette.innerHTML = categories.map(cat => `
+                <div class="mb-4">
+                    <h3 class="text-sm font-semibold text-gray-600 mb-2 uppercase">${labels[cat]}</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
+                        ${noteTypes.filter(n => n.category === cat).map((note, i) => `
+                            <button class="note-btn bg-gradient-to-br ${note.color} text-white rounded-lg p-3 shadow-md"
+                                    onclick="addNote(${noteTypes.indexOf(note)})"
+                                    id="note-${noteTypes.indexOf(note)}">
+                                <div class="text-3xl mb-1">${(noteImageMap[note.name]) ? `
+                                    <img src="${noteImageMap[note.name]}" alt="${note.name}" class="mx-auto h-10 object-contain" />
+                                ` : `<span class="material-symbols-outlined icon-music">music_note</span>` }</div>
+                                <div class="text-xs font-semibold truncate">${note.name}</div>
+                                <div class="text-xs opacity-80">${note.duration.toFixed(2)}</div>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getTotalDuration() {
+            return sequence.reduce((sum, note) => sum + note.duration, 0);
+        }
+
+        function updateDisplay() {
+            const total = getTotalDuration();
+            document.getElementById('durationDisplay').textContent = `${total.toFixed(2)} / 8 temps`;
+            document.getElementById('progressBar').style.width = `${(total / 8) * 100}%`;
+
+            // Update button states
+            document.getElementById('playBtn').disabled = sequence.length === 0 || isPlaying;
+            document.getElementById('stopBtn').disabled = !isPlaying;
+            document.getElementById('clearBtn').disabled = sequence.length === 0;
+            document.getElementById('saveBtn').disabled = sequence.length === 0;
+
+            // Update note buttons
+            noteTypes.forEach((note, i) => {
+                const btn = document.getElementById(`note-${i}`);
+                if (btn) btn.disabled = total + note.duration > 8;
+            });
+
+            renderSequence();
+        }
+
+        function renderSequence() {
+            const display = document.getElementById('sequenceDisplay');
+            if (sequence.length === 0) {
+                display.innerHTML = '<div class="text-center text-gray-400 py-8">Créez votre rythme ou chargez un exercice</div>';
+                return;
+            }
+
+            let html = '<div class="flex flex-wrap gap-2 md:gap-3 items-center">';
+            let cumulativeDuration = 0;
+            
+            sequence.forEach((note, i) => {
+                html += `
+                    <div class="flex items-center gap-2">
+                        <div class="note-display">
+                            <div class="bg-white border-2 border-purple-400 rounded-lg p-2 md:p-4 text-center shadow-sm">
+                                <div class="text-3xl md:text-5xl">${(noteImageMap[note.name]) ? `
+                                    <img src="${noteImageMap[note.name]}" alt="${note.name}" class="mx-auto h-12 object-contain" />
+                                ` : (note.isRest ? note.symbol : `<span class="material-symbols-outlined icon-music">music_note</span>` )}</div>
+                                <div class="text-xs text-gray-600 mt-1">${note.duration.toFixed(2)}</div>
+                            </div>
+                            <button onclick="removeNote(${i})" 
+                                    class="delete-btn absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs">
+                                ✕
+                            </button>
+                        </div>
+                `;
+                cumulativeDuration += note.duration;
+                if (Math.abs(cumulativeDuration % 4) < 0.01 && i !== sequence.length - 1) {
+                    html += '<div class="h-12 md:h-16 w-0.5 bg-gray-400 mx-1"></div>';
+                }
+                html += '</div>';
+            });
+            html += '</div>';
+            display.innerHTML = html;
+        }
+
+        function addNote(index) {
+            const note = {...noteTypes[index], id: Date.now() + Math.random()};
+            if (getTotalDuration() + note.duration <= 8) {
+                sequence.push(note);
+                updateDisplay();
+            }
+        }
+
+        function removeNote(index) {
+            sequence.splice(index, 1);
+            updateDisplay();
+        }
+
+        function clearSequence() {
+            sequence = [];
+            stopPlayback();
+            updateDisplay();
+        }
+
+        async function playSequence() {
+            if (sequence.length === 0) return;
+            await Tone.start();
+
+            // Dispose previous part if any
+            if (currentPart) {
+                currentPart.stop();
+                currentPart.dispose();
+                currentPart = null;
+            }
+
+            // Build events for Tone.Part: [timeInSeconds, noteObject]
+            const events = [];
+            let currentSeconds = 0;
+            const beatSec = 60 / tempo;
+            sequence.forEach(n => {
+                if (!n.isRest) events.push([currentSeconds, n]);
+                currentSeconds += n.duration * beatSec;
+            });
+
+            if (events.length === 0) {
+                // nothing to play (all rests)
+                return;
+            }
+
+            // Clear existing Transport events to avoid phase issues
+            Tone.Transport.cancel(0);
+
+            // Create Tone.Part
+            currentPart = new Tone.Part((time, note) => {
+                synth.triggerAttackRelease('C5', note.duration * beatSec * 0.9, time);
+            }, events).start(0);
+
+            // Looping
+            currentPart.loop = !!loopEnabled;
+            currentPart.loopEnd = getTotalDuration() * beatSec;
+
+            // If metronome enabled, schedule it aligned to transport
+            if (metronomeEnabled) {
+                if (metronomeId !== null) {
+                    Tone.Transport.clear(metronomeId);
+                    metronomeId = null;
+                }
+                // compute current beat count from transport position
+                let beatCount = Math.floor(Tone.Transport.seconds / beatSec) || 0;
+                metronomeId = Tone.Transport.scheduleRepeat((time) => {
+                    if (beatCount % 4 === 0) {
+                        metronome.triggerAttackRelease('C6', '8n', time);
+                    } else {
+                        metronome.triggerAttackRelease('C5', '8n', time);
+                    }
+                    beatCount++;
+                }, '4n', 0);
+            }
+
+            // Ensure Transport bpm matches
+            Tone.Transport.bpm.value = tempo;
+
+            // Start Transport at position 0 to align everything
+            Tone.Transport.start('+0.01', 0);
+            isPlaying = true;
+            updateDisplay();
+        }
+
+        function stopPlayback() {
+            isPlaying = false;
+            // stop Tone.Transport and parts
+            if (currentPart) {
+                currentPart.stop();
+                currentPart.dispose();
+                currentPart = null;
+            }
+            // clear transport scheduled metronome
+            if (metronomeId !== null) {
+                Tone.Transport.clear(metronomeId);
+                metronomeId = null;
+            }
+            Tone.Transport.stop();
+            updateDisplay();
+        }
+
+        function toggleMetronome() {
+            metronomeEnabled = !metronomeEnabled;
+            const btn = document.getElementById('metronomeBtn');
+            
+            if (metronomeEnabled) {
+                btn.textContent = '🔊 Métronome';
+                btn.className = 'bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg';
+                startMetronome();
+            } else {
+                btn.textContent = '🔇 Métronome';
+                btn.className = 'bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg';
+                stopMetronome();
+            }
+        }
+
+        function startMetronome() {
+            // Schedule a metronome tick on Transport every quarter note
+            if (metronomeId !== null) {
+                Tone.Transport.clear(metronomeId);
+                metronomeId = null;
+            }
+            let beatCount = Math.floor(Tone.Transport.seconds / (60/tempo)) || 0;
+            metronomeId = Tone.Transport.scheduleRepeat((time) => {
+                if (beatCount % 4 === 0) {
+                    metronome.triggerAttackRelease('C6', '8n', time);
+                } else {
+                    metronome.triggerAttackRelease('C5', '8n', time);
+                }
+                beatCount++;
+            }, '4n', 0);
+
+            Tone.Transport.bpm.value = tempo;
+            if (!Tone.Transport.state || Tone.Transport.state !== 'started') {
+                Tone.Transport.start('+0.01', Tone.Transport.seconds);
+            }
+        }
+
+        function stopMetronome() {
+            if (metronomeId !== null) {
+                Tone.Transport.clear(metronomeId);
+                metronomeId = null;
+            }
+            // If nothing else is playing, stop the transport
+            if (!isPlaying) Tone.Transport.stop();
+        }
+
+        function toggleLoop() {
+            loopEnabled = !loopEnabled;
+            const btn = document.getElementById('loopBtn');
+            btn.textContent = loopEnabled ? '🔁 Boucle ON' : '🔁 Boucle OFF';
+            btn.className = loopEnabled ? 
+                'bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md' :
+                'bg-purple-400 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md';
+        }
+
+        function showRandomDialog() {
+            const dialog = document.getElementById('dialogs');
+            dialog.innerHTML = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div class="bg-white rounded-lg p-6 max-w-md w-full">
+                        <h3 class="text-xl font-bold mb-4">🎲 Générer un rythme aléatoire</h3>
+                        <p class="text-gray-600 mb-4">Choisissez le niveau de difficulté :</p>
+                        <div class="space-y-3 mb-6">
+                            <button onclick="generateRandom('easy')" class="w-full p-4 rounded-lg border-2 border-gray-300 hover:border-green-300">
+                                <div class="font-bold text-green-600">😊 Facile</div>
+                                <div class="text-sm text-gray-600">Noires, blanches, croches basiques</div>
+                            </button>
+                            <button onclick="generateRandom('medium')" class="w-full p-4 rounded-lg border-2 border-gray-300 hover:border-blue-300">
+                                <div class="font-bold text-blue-600">🎵 Moyen</div>
+                                <div class="text-sm text-gray-600">Avec notes pointées et double-croches</div>
+                            </button>
+                            <button onclick="generateRandom('hard')" class="w-full p-4 rounded-lg border-2 border-gray-300 hover:border-orange-300">
+                                <div class="font-bold text-orange-600">🔥 Difficile</div>
+                                <div class="text-sm text-gray-600">Triolets et combinaisons complexes</div>
+                            </button>
+                            <button onclick="generateRandom('expert')" class="w-full p-4 rounded-lg border-2 border-gray-300 hover:border-red-300">
+                                <div class="font-bold text-red-600">⚡ Expert</div>
+                                <div class="text-sm text-gray-600">Toutes les notes disponibles</div>
+                            </button>
+                        </div>
+                        <button onclick="closeDialog()" class="w-full bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg">
+                            Annuler
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateRandom(difficulty) {
+                const filters = {
+                easy: ['Noire', 'Blanche', 'Croche', 'Silence noire'],
+                medium: ['Noire', 'Blanche', 'Croche', 'Double-croche', 'Noire pointée', 'Silence noire', 'Silence croche'],
+                hard: noteTypes.map(n => n.name),
+                expert: noteTypes.map(n => n.name)
+            };
+
+            const availableNotes = noteTypes.filter(n => filters[difficulty].includes(n.name));
+            sequence = [];
+            let total = 0;
+            let attempts = 0;
+
+            while (total < 8 && attempts < 100) {
+                const note = {...availableNotes[Math.floor(Math.random() * availableNotes.length)]};
+                if (total + note.duration <= 8) {
+                    note.id = Date.now() + Math.random();
+                    sequence.push(note);
+                    total += note.duration;
+                }
+                attempts++;
+            }
+
+            closeDialog();
+            updateDisplay();
+        }
+
+        function showExercises() {
+            const dialog = document.getElementById('dialogs');
+            dialog.innerHTML = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div class="bg-white rounded-lg p-6 max-w-2xl w-full max-h-96 overflow-y-auto">
+                        <h3 class="text-xl font-bold mb-4">Exercices prédéfinis</h3>
+                        <div class="space-y-2">
+                            ${exercises.map((ex, i) => `
+                                <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg hover:bg-gray-100">
+                                    <div>
+                                        <div class="font-semibold">${ex.name}</div>
+                                        <div class="text-sm text-gray-600">${ex.notes.length} notes</div>
+                                    </div>
+                                    <button onclick="loadExercise(${i})" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg">
+                                        Charger
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button onclick="closeDialog()" class="w-full mt-4 bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg">
+                            Fermer
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadExercise(index) {
+            const ex = exercises[index];
+            sequence = ex.notes.map(name => {
+                const note = {...noteTypes.find(n => n.name === name)};
+                note.id = Date.now() + Math.random();
+                return note;
+            });
+            closeDialog();
+            updateDisplay();
+        }
+
+        function closeDialog() {
+            document.getElementById('dialogs').innerHTML = '';
+        }
+
+        // Event listeners
+        document.getElementById('tempoInput').addEventListener('input', (e) => {
+            tempo = Math.max(40, Math.min(240, parseInt(e.target.value) || 120));
+            document.getElementById('tempoSlider').value = tempo;
+            if (metronomeEnabled) {
+                stopMetronome();
+                startMetronome();
+            }
+        });
+
+        document.getElementById('tempoSlider').addEventListener('input', (e) => {
+            tempo = parseInt(e.target.value);
+            document.getElementById('tempoInput').value = tempo;
+            if (metronomeEnabled) {
+                stopMetronome();
+                startMetronome();
+            }
+        });
+
+        document.getElementById('metronomeBtn').addEventListener('click', toggleMetronome);
+        document.getElementById('loopBtn').addEventListener('click', toggleLoop);
+        document.getElementById('randomBtn').addEventListener('click', showRandomDialog);
+        document.getElementById('exercisesBtn').addEventListener('click', showExercises);
+        document.getElementById('playBtn').addEventListener('click', playSequence);
+        document.getElementById('stopBtn').addEventListener('click', stopPlayback);
+        document.getElementById('clearBtn').addEventListener('click', clearSequence);
+        document.getElementById('saveBtn').addEventListener('click', saveSequence);
+        document.getElementById('loadBtn').addEventListener('click', showSavedDialog);
+        document.getElementById('exportBtn').addEventListener('click', clientExportAll);
+        document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+        document.getElementById('importFile').addEventListener('change', handleImportFile);
+        document.getElementById('exportProjectBtn').addEventListener('click', exportToProject);
+        document.getElementById('viewExportsBtn').addEventListener('click', viewExports);
+
+        // Initialize
+        // Load saved rhythms from localStorage
+        function loadSavedFromStorage(){
+            try{
+                const raw = localStorage.getItem('savedRhythms');
+                if(raw){
+                    const parsed = JSON.parse(raw);
+                    savedRhythms = Array.isArray(parsed) ? parsed : [];
+                } else savedRhythms = [];
+            }catch(e){ savedRhythms = []; }
+            updateLoadButton();
+        }
+
+        function updateLoadButton(){
+            const btn = document.getElementById('loadBtn');
+            btn.textContent = `📁 Charger (${savedRhythms.length})`;
+            btn.disabled = savedRhythms.length === 0;
+        }
+
+        async function saveSequence(){
+            if(sequence.length === 0) return;
+            const name = prompt('Nommer ce rythme (optionnel) :','Rhythme ' + (new Date()).toLocaleString());
+            const data = { name: name || 'Sans titre', created: Date.now(), seq: sequence };
+            if(!Array.isArray(savedRhythms)) savedRhythms = [];
+            savedRhythms.push(data);
+            localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
+            updateLoadButton();
+
+            // Also attempt to export this saved rhythm to the project's exports folder
+            try{
+                const filename = (name ? name.replace(/[^a-z0-9-_\.]/gi,'_') : 'rhythm') + '_' + Date.now() + '.json';
+                await exportSingleSavedRhythm(filename, data);
+            }catch(err){
+                console.warn('saveSequence: export réseau échoué:', err);
+                // user already has a local copy in localStorage; optionally notify
+            }
+
+            alert('Rythme sauvegardé localement. (Export tenté automatiquement)');
+        }
+
+        function showSavedDialog(){
+            const dialog = document.getElementById('dialogs');
+            dialog.innerHTML = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div class="bg-white rounded-lg p-6 max-w-2xl w-full max-h-96 overflow-y-auto">
+                        <h3 class="text-xl font-bold mb-4">Rythmes sauvegardés</h3>
+                        <div class="space-y-2">
+                            ${savedRhythms.map((s,i) => `
+                                <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg hover:bg-gray-100">
+                                    <div>
+                                        <div class="font-semibold">${s.name}</div>
+                                        <div class="text-sm text-gray-600">${new Date(s.created).toLocaleString()}</div>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button onclick="loadSaved(${i})" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg">Charger</button>
+                                        <button onclick="deleteSaved(${i})" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg">Supprimer</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button onclick="closeDialog()" class="w-full mt-4 bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg">Fermer</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadSaved(index){
+            const s = savedRhythms[index];
+            if(!s) return;
+            sequence = s.seq.map(n => ({...n, id: Date.now()+Math.random()}));
+            closeDialog();
+            updateDisplay();
+        }
+
+        function deleteSaved(index){
+            savedRhythms.splice(index,1);
+            localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
+            showSavedDialog();
+            updateLoadButton();
+        }
+
+        loadSavedFromStorage();
+        renderNotePalette();
+        updateDisplay();
+
+        // Export all saved rhythms as a download
+        function clientExportAll(){
+            const data = localStorage.getItem('savedRhythms') || '[]';
+            const blob = new Blob([data], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'savedRhythms.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        // View exports on server
+        async function viewExports(){
+            // Try the local helper server first (useful when developing locally)
+            const tryBases = [
+                'http://localhost:50056', // helper server we run locally
+                window.location.origin     // fallback: same origin (may be GitHub Pages and will 404)
+            ];
+
+            let lastError = null;
+            for(const base of tryBases){
+                try{
+                    const res = await fetch(base + '/exports/list', { cache: 'no-store' });
+                    if(!res.ok) {
+                        lastError = new Error('HTTP ' + res.status + ' from ' + base);
+                        continue;
+                    }
+                    const list = await res.json();
+                    const dialog = document.getElementById('dialogs');
+                    dialog.innerHTML = `
+                        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div class="bg-white rounded-lg p-6 max-w-2xl w-full max-h-96 overflow-y-auto">
+                                <h3 class="text-xl font-bold mb-4">Fichiers exportés</h3>
+                                <div class="space-y-2">
+                                    ${list.map(f => `
+                                        <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                                            <div>
+                                                <div class="font-semibold">${'${f.name}'}</div>
+                                                <div class="text-sm text-gray-600">${'${new Date(f.mtime).toLocaleString()}'}</div>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <a class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-2 rounded-lg" href="${base}/exports/download?file=${'${encodeURIComponent(f.name)}'}" target="_blank">Télécharger</a>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <button onclick="closeDialog()" class="w-full mt-4 bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg">Fermer</button>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }catch(err){
+                    lastError = err;
+                    // try the next base
+                }
+            }
+
+            // If we get here, no server answered. Inform the user and offer a local download fallback.
+            console.warn('viewExports: aucun serveur exports reachable:', lastError);
+            if(window.location.hostname && window.location.hostname.endsWith('.github.io')){
+                alert('Serveur d\'export introuvable (GitHub Pages ne fournit pas le backend). Je propose de télécharger localement le fichier à la place.');
+            } else {
+                alert('Serveur d\'export introuvable: ' + (lastError ? lastError.message : 'aucune réponse') + '\nJe propose de télécharger localement le fichier à la place.');
+            }
+            clientExportAll();
+        }
+
+        function handleImportFile(e){
+            const f = e.target.files[0];
+            if(!f) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try{
+                    const parsed = JSON.parse(reader.result);
+
+                    // 1) Array of saved rhythms (each element has a `seq` array)
+                    if(Array.isArray(parsed) && parsed.length>0 && parsed.every(it => it && Array.isArray(it.seq))){
+                        savedRhythms = parsed;
+                        localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
+                        loadSavedFromStorage();
+                        // auto-load first rhythm
+                        sequence = savedRhythms[0].seq.map(n => ({...n, id: Date.now()+Math.random()}));
+                        updateDisplay();
+                        alert('Import réussi : ' + savedRhythms.length + ' rythme(s) importé(s). Le premier a été chargé.');
+                        return;
+                    }
+
+                    // 2) Array of simple note objects (each has duration)
+                    if(Array.isArray(parsed) && parsed.length>0 && parsed.every(it => it && typeof it.duration === 'number')){
+                        sequence = parsed.map(n => ({...n, id: Date.now()+Math.random()}));
+                        updateDisplay();
+                        alert('Import réussi : séquence chargée.');
+                        return;
+                    }
+
+                    // 3) Single rhythm object with seq array
+                    if(parsed && typeof parsed === 'object' && Array.isArray(parsed.seq)){
+                        if(!Array.isArray(savedRhythms)) savedRhythms = [];
+                        savedRhythms.push(parsed);
+                        localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
+                        loadSavedFromStorage();
+                        sequence = parsed.seq.map(n => ({...n, id: Date.now()+Math.random()}));
+                        updateDisplay();
+                        alert('Import réussi : rythme ajouté aux sauvegardes et chargé.');
+                        return;
+                    }
+
+                    // 4) Single object containing note names in `notes` (e.g. exported exercise)
+                    if(parsed && typeof parsed === 'object' && Array.isArray(parsed.notes)){
+                        sequence = parsed.notes.map(name => {
+                            const note = {...noteTypes.find(n => n.name === name) || { name, duration: 1 }};
+                            note.id = Date.now() + Math.random();
+                            return note;
+                        });
+                        updateDisplay();
+                        alert('Import réussi : séquence de noms de notes chargée.');
+                        return;
+                    }
+
+                    // Fallback: store parsed value into savedRhythms (if array or object)
+                    savedRhythms = Array.isArray(parsed) ? parsed : [parsed];
+                    localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
+                    loadSavedFromStorage();
+                    alert('Import réussi et stocké dans les sauvegardes.');
+                }catch(err){
+                    alert('JSON invalide: '+err.message);
+                }finally{
+                    // clear file input so same file can be re-imported if needed
+                    try{ document.getElementById('importFile').value = ''; }catch(e){}
+                }
+            };
+            reader.readAsText(f);
+        }
+
+        // Export to project: POST to local server endpoint /save-export
+        async function exportToProject(){
+            const data = localStorage.getItem('savedRhythms') || '[]';
+            const filename = prompt('Nom du fichier côté serveur (ex: export1.json):', 'savedRhythms_' + Date.now() + '.json');
+            if(!filename) return;
+
+            // If we're running on GitHub Pages, there is no backend to accept the POST.
+            if(window.location.hostname && window.location.hostname.endsWith('.github.io')){
+                alert('Ce site est hébergé sur GitHub Pages — aucun serveur d\'enregistrement n\'est disponible. Téléchargement local en cours.');
+                clientDownload(filename, data);
+                return;
+            }
+
+            // Try localhost helper server first, then same-origin as fallback.
+            const endpoints = [
+                'http://localhost:50056/save-export',
+                window.location.origin + '/save-export'
+            ];
+
+            let lastError = null;
+            for(const url of endpoints){
+                try{
+                    const res = await fetch(url, {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ filename, data }),
+                        cache: 'no-store'
+                    });
+                    if(!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText + ' from ' + url);
+                    alert('Exporté vers le dossier ./exports du projet via ' + url);
+                    return;
+                }catch(err){
+                    lastError = err;
+                    // try next endpoint
+                }
+            }
+
+            console.warn('exportToProject: impossible d\'exporter via les endpoints, dernière erreur:', lastError);
+            alert('Impossible d\'atteindre le serveur d\'export: ' + (lastError ? lastError.message : 'aucune réponse') + '\nJe propose de télécharger localement le fichier à la place.');
+            clientDownload(filename, data);
+        }
+
+        // Export a single saved rhythm object (tries server, falls back to download)
+        async function exportSingleSavedRhythm(filename, rhythmObj){
+            const data = JSON.stringify(rhythmObj, null, 2);
+            // Reuse exportToProject's internal logic by calling clientDownload or posting to endpoints
+            // We'll attempt the same endpoints as exportToProject
+            if(window.location.hostname && window.location.hostname.endsWith('.github.io')){
+                clientDownload(filename, data);
+                return;
+            }
+
+            const endpoints = [
+                'http://localhost:50056/save-export',
+                window.location.origin + '/save-export'
+            ];
+
+            for(const url of endpoints){
+                try{
+                    const res = await fetch(url, {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ filename, data }),
+                        cache: 'no-store'
+                    });
+                    if(!res.ok) throw new Error('HTTP ' + res.status);
+                    return; // success
+                }catch(e){ /* try next */ }
+            }
+
+            // fallback
+            clientDownload(filename, data);
+        }
+
+        function clientDownload(filename, data){
+            const blob = new Blob([data], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

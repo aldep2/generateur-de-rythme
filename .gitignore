@@ -1,0 +1,9 @@
+node_modules/
+exports/
+.DS_Store
+.env
+npm-debug.log
+dist/
+*.log
+*.kra
+exports/

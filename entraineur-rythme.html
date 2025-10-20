@@ -773,10 +773,62 @@
             reader.onload = () => {
                 try{
                     const parsed = JSON.parse(reader.result);
-                    localStorage.setItem('savedRhythms', JSON.stringify(parsed));
+
+                    // 1) Array of saved rhythms (each element has a `seq` array)
+                    if(Array.isArray(parsed) && parsed.length>0 && parsed.every(it => it && Array.isArray(it.seq))){
+                        savedRhythms = parsed;
+                        localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
+                        loadSavedFromStorage();
+                        // auto-load first rhythm
+                        sequence = savedRhythms[0].seq.map(n => ({...n, id: Date.now()+Math.random()}));
+                        updateDisplay();
+                        alert('Import réussi : ' + savedRhythms.length + ' rythme(s) importé(s). Le premier a été chargé.');
+                        return;
+                    }
+
+                    // 2) Array of simple note objects (each has duration)
+                    if(Array.isArray(parsed) && parsed.length>0 && parsed.every(it => it && typeof it.duration === 'number')){
+                        sequence = parsed.map(n => ({...n, id: Date.now()+Math.random()}));
+                        updateDisplay();
+                        alert('Import réussi : séquence chargée.');
+                        return;
+                    }
+
+                    // 3) Single rhythm object with seq array
+                    if(parsed && typeof parsed === 'object' && Array.isArray(parsed.seq)){
+                        if(!Array.isArray(savedRhythms)) savedRhythms = [];
+                        savedRhythms.push(parsed);
+                        localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
+                        loadSavedFromStorage();
+                        sequence = parsed.seq.map(n => ({...n, id: Date.now()+Math.random()}));
+                        updateDisplay();
+                        alert('Import réussi : rythme ajouté aux sauvegardes et chargé.');
+                        return;
+                    }
+
+                    // 4) Single object containing note names in `notes` (e.g. exported exercise)
+                    if(parsed && typeof parsed === 'object' && Array.isArray(parsed.notes)){
+                        sequence = parsed.notes.map(name => {
+                            const note = {...noteTypes.find(n => n.name === name) || { name, duration: 1 }};
+                            note.id = Date.now() + Math.random();
+                            return note;
+                        });
+                        updateDisplay();
+                        alert('Import réussi : séquence de noms de notes chargée.');
+                        return;
+                    }
+
+                    // Fallback: store parsed value into savedRhythms (if array or object)
+                    savedRhythms = Array.isArray(parsed) ? parsed : [parsed];
+                    localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
                     loadSavedFromStorage();
-                    alert('Import réussi.');
-                }catch(err){ alert('JSON invalide: '+err.message); }
+                    alert('Import réussi et stocké dans les sauvegardes.');
+                }catch(err){
+                    alert('JSON invalide: '+err.message);
+                }finally{
+                    // clear file input so same file can be re-imported if needed
+                    try{ document.getElementById('importFile').value = ''; }catch(e){}
+                }
             };
             reader.readAsText(f);
         }

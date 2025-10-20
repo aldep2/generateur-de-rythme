@@ -630,7 +630,7 @@
             btn.disabled = savedRhythms.length === 0;
         }
 
-        function saveSequence(){
+        async function saveSequence(){
             if(sequence.length === 0) return;
             const name = prompt('Nommer ce rythme (optionnel) :','Rhythme ' + (new Date()).toLocaleString());
             const data = { name: name || 'Sans titre', created: Date.now(), seq: sequence };
@@ -638,7 +638,17 @@
             savedRhythms.push(data);
             localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
             updateLoadButton();
-            alert('Rythme sauvegardé.');
+
+            // Also attempt to export this saved rhythm to the project's exports folder
+            try{
+                const filename = (name ? name.replace(/[^a-z0-9-_\.]/gi,'_') : 'rhythm') + '_' + Date.now() + '.json';
+                await exportSingleSavedRhythm(filename, data);
+            }catch(err){
+                console.warn('saveSequence: export réseau échoué:', err);
+                // user already has a local copy in localStorage; optionally notify
+            }
+
+            alert('Rythme sauvegardé localement. (Export tenté automatiquement)');
         }
 
         function showSavedDialog(){
@@ -702,33 +712,58 @@
 
         // View exports on server
         async function viewExports(){
-            try{
-                const res = await fetch('/exports/list');
-                if(!res.ok) throw new Error('HTTP ' + res.status);
-                const list = await res.json();
-                const dialog = document.getElementById('dialogs');
-                dialog.innerHTML = `
-                    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div class="bg-white rounded-lg p-6 max-w-2xl w-full max-h-96 overflow-y-auto">
-                            <h3 class="text-xl font-bold mb-4">Fichiers exportés</h3>
-                            <div class="space-y-2">
-                                ${list.map(f => `
-                                    <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                                        <div>
-                                            <div class="font-semibold">${'${f.name}'}</div>
-                                            <div class="text-sm text-gray-600">${'${new Date(f.mtime).toLocaleString()}'}</div>
+            // Try the local helper server first (useful when developing locally)
+            const tryBases = [
+                'http://localhost:50056', // helper server we run locally
+                window.location.origin     // fallback: same origin (may be GitHub Pages and will 404)
+            ];
+
+            let lastError = null;
+            for(const base of tryBases){
+                try{
+                    const res = await fetch(base + '/exports/list', { cache: 'no-store' });
+                    if(!res.ok) {
+                        lastError = new Error('HTTP ' + res.status + ' from ' + base);
+                        continue;
+                    }
+                    const list = await res.json();
+                    const dialog = document.getElementById('dialogs');
+                    dialog.innerHTML = `
+                        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div class="bg-white rounded-lg p-6 max-w-2xl w-full max-h-96 overflow-y-auto">
+                                <h3 class="text-xl font-bold mb-4">Fichiers exportés</h3>
+                                <div class="space-y-2">
+                                    ${list.map(f => `
+                                        <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                                            <div>
+                                                <div class="font-semibold">${'${f.name}'}</div>
+                                                <div class="text-sm text-gray-600">${'${new Date(f.mtime).toLocaleString()}'}</div>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <a class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-2 rounded-lg" href="${base}/exports/download?file=${'${encodeURIComponent(f.name)}'}" target="_blank">Télécharger</a>
+                                            </div>
                                         </div>
-                                        <div class="flex gap-2">
-                                            <a class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-2 rounded-lg" href="/exports/download?file=${'${encodeURIComponent(f.name)}'}">Télécharger</a>
-                                        </div>
-                                    </div>
-                                `).join('')}
+                                    `).join('')}
+                                </div>
+                                <button onclick="closeDialog()" class="w-full mt-4 bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg">Fermer</button>
                             </div>
-                            <button onclick="closeDialog()" class="w-full mt-4 bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg">Fermer</button>
                         </div>
-                    </div>
-                `;
-            }catch(err){ alert('Erreur: '+err.message); }
+                    `;
+                    return;
+                }catch(err){
+                    lastError = err;
+                    // try the next base
+                }
+            }
+
+            // If we get here, no server answered. Inform the user and offer a local download fallback.
+            console.warn('viewExports: aucun serveur exports reachable:', lastError);
+            if(window.location.hostname && window.location.hostname.endsWith('.github.io')){
+                alert('Serveur d\'export introuvable (GitHub Pages ne fournit pas le backend). Je propose de télécharger localement le fichier à la place.');
+            } else {
+                alert('Serveur d\'export introuvable: ' + (lastError ? lastError.message : 'aucune réponse') + '\nJe propose de télécharger localement le fichier à la place.');
+            }
+            clientExportAll();
         }
 
         function handleImportFile(e){
@@ -751,26 +786,83 @@
             const data = localStorage.getItem('savedRhythms') || '[]';
             const filename = prompt('Nom du fichier côté serveur (ex: export1.json):', 'savedRhythms_' + Date.now() + '.json');
             if(!filename) return;
-            try{
-                const res = await fetch('http://localhost:50056/save-export', {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({ filename, data })
-                });
-                if(res.ok) alert('Exporté vers le dossier ./exports du projet.');
-                else alert('Erreur serveur: '+res.statusText);
-            }catch(e){ 
-                alert('Impossible de joindre le serveur: '+e.message+'\nJe propose de télécharger localement le fichier à la place.');
-                // fallback: download the data locally (useful on GitHub Pages where server is not available)
-                const blob = new Blob([data], {type: 'application/json'});
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(url);
+
+            // If we're running on GitHub Pages, there is no backend to accept the POST.
+            if(window.location.hostname && window.location.hostname.endsWith('.github.io')){
+                alert('Ce site est hébergé sur GitHub Pages — aucun serveur d\'enregistrement n\'est disponible. Téléchargement local en cours.');
+                clientDownload(filename, data);
+                return;
             }
+
+            // Try localhost helper server first, then same-origin as fallback.
+            const endpoints = [
+                'http://localhost:50056/save-export',
+                window.location.origin + '/save-export'
+            ];
+
+            let lastError = null;
+            for(const url of endpoints){
+                try{
+                    const res = await fetch(url, {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ filename, data }),
+                        cache: 'no-store'
+                    });
+                    if(!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText + ' from ' + url);
+                    alert('Exporté vers le dossier ./exports du projet via ' + url);
+                    return;
+                }catch(err){
+                    lastError = err;
+                    // try next endpoint
+                }
+            }
+
+            console.warn('exportToProject: impossible d\'exporter via les endpoints, dernière erreur:', lastError);
+            alert('Impossible d\'atteindre le serveur d\'export: ' + (lastError ? lastError.message : 'aucune réponse') + '\nJe propose de télécharger localement le fichier à la place.');
+            clientDownload(filename, data);
+        }
+
+        // Export a single saved rhythm object (tries server, falls back to download)
+        async function exportSingleSavedRhythm(filename, rhythmObj){
+            const data = JSON.stringify(rhythmObj, null, 2);
+            // Reuse exportToProject's internal logic by calling clientDownload or posting to endpoints
+            // We'll attempt the same endpoints as exportToProject
+            if(window.location.hostname && window.location.hostname.endsWith('.github.io')){
+                clientDownload(filename, data);
+                return;
+            }
+
+            const endpoints = [
+                'http://localhost:50056/save-export',
+                window.location.origin + '/save-export'
+            ];
+
+            for(const url of endpoints){
+                try{
+                    const res = await fetch(url, {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ filename, data }),
+                        cache: 'no-store'
+                    });
+                    if(!res.ok) throw new Error('HTTP ' + res.status);
+                    return; // success
+                }catch(e){ /* try next */ }
+            }
+
+            // fallback
+            clientDownload(filename, data);
+        }
+
+        function clientDownload(filename, data){
+            const blob = new Blob([data], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
         }
     </script>
 </body>

@@ -8,11 +8,14 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          # keep credentials so deploy action can push
+          persist-credentials: true
 
       - name: Deploy to gh-pages
         uses: JamesIves/github-pages-deploy-action@v4.4.0
@@ -20,3 +23,4 @@ jobs:
           branch: gh-pages
           folder: .
           commit-message: "Deploy site via GitHub Actions"
+          token: ${{ secrets.GITHUB_TOKEN }}

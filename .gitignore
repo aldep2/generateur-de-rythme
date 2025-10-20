@@ -5,3 +5,4 @@ exports/
 npm-debug.log
 dist/
 *.log
+*.kra

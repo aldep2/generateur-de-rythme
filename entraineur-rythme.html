@@ -683,26 +683,21 @@
                 alert('Aucune note à sauvegarder. Créez une séquence avant de sauvegarder.');
                 return;
             }
-            let name;
-            try{
-                name = prompt('Nommer ce rythme (optionnel) :','Rhythme ' + (new Date()).toLocaleString());
-            }catch(e){
-                console.warn('Prompt annulé ou bloqué', e);
-                name = 'Rhythme ' + Date.now();
-            }
 
-            const data = { name: name || 'Sans titre', created: Date.now(), seq: sequence };
-            try{
-                if(!Array.isArray(savedRhythms)) savedRhythms = [];
-                savedRhythms.push(data);
-                localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
-                updateLoadButton();
-                console.log('Saved to localStorage, count=', savedRhythms.length);
-            }catch(err){
-                console.error('Erreur en sauvegardant localStorage', err);
-                alert('Erreur en sauvegardant localement: '+err.message);
-                return;
-            }
+            // Show a modal dialog to get the name (better UX than prompt)
+            showSaveNameDialog(async (name) => {
+                const data = { name: name || 'Sans titre', created: Date.now(), seq: sequence };
+                try{
+                    if(!Array.isArray(savedRhythms)) savedRhythms = [];
+                    savedRhythms.push(data);
+                    localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
+                    updateLoadButton();
+                    console.log('Saved to localStorage, count=', savedRhythms.length);
+                }catch(err){
+                    console.error('Erreur en sauvegardant localStorage', err);
+                    alert('Erreur en sauvegardant localement: '+err.message);
+                    return;
+                }
 
             // Also attempt to export this saved rhythm to the project's exports folder
             try{
@@ -715,7 +710,39 @@
                 // user already has a local copy in localStorage; optionally notify
             }
 
-            alert('Rythme sauvegardé localement. (Export tenté automatiquement)');
+                alert('Rythme sauvegardé localement. (Export tenté automatiquement)');
+            });
+        }
+
+        // Helper: show a modal to ask for save name, then call cb(name)
+        function showSaveNameDialog(cb){
+            const dialog = document.getElementById('dialogs');
+            const defaultName = 'Rhythme ' + (new Date()).toLocaleString();
+            dialog.innerHTML = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div class="bg-white rounded-lg p-6 max-w-md w-full">
+                        <h3 class="text-lg font-bold mb-2">Nommer ce rythme</h3>
+                        <input id="saveNameInput" type="text" class="w-full border rounded-lg px-3 py-2 mb-4" value="${defaultName}" />
+                        <div class="flex gap-2 justify-end">
+                            <button id="saveNameCancel" class="px-4 py-2 rounded-lg bg-gray-300 hover:bg-gray-400">Annuler</button>
+                            <button id="saveNameOk" class="px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600">Enregistrer</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            // focus input
+            setTimeout(()=>{
+                const inp = document.getElementById('saveNameInput');
+                if(inp) inp.focus();
+                const cancel = document.getElementById('saveNameCancel');
+                const ok = document.getElementById('saveNameOk');
+                cancel.addEventListener('click', ()=>{ dialog.innerHTML=''; });
+                ok.addEventListener('click', ()=>{
+                    const name = (document.getElementById('saveNameInput')||{}).value || '';
+                    dialog.innerHTML = '';
+                    try{ cb(name); }catch(e){ console.error(e); }
+                });
+            },50);
         }
 
         function showSavedDialog(){

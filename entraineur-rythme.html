@@ -81,6 +81,9 @@
             <button id="exportProjectBtn" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-4 rounded-lg shadow-md">
                 ⤓ Exporter → projet
             </button>
+            <button id="chooseExportsDirBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-2 px-4 rounded-lg shadow-md">
+                📁 Choisir dossier exports
+            </button>
             <button id="viewExportsBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-900 font-bold py-2 px-4 rounded-lg shadow-md">
                 📂 Voir exports
             </button>
@@ -603,13 +606,24 @@
         document.getElementById('playBtn').addEventListener('click', playSequence);
         document.getElementById('stopBtn').addEventListener('click', stopPlayback);
         document.getElementById('clearBtn').addEventListener('click', clearSequence);
-        document.getElementById('saveBtn').addEventListener('click', saveSequence);
+        const saveBtnEl = document.getElementById('saveBtn');
+        if(saveBtnEl) saveBtnEl.addEventListener('click', saveSequence);
+        else console.error('Bouton saveBtn introuvable');
         document.getElementById('loadBtn').addEventListener('click', showSavedDialog);
         document.getElementById('exportBtn').addEventListener('click', clientExportAll);
         document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
         document.getElementById('importFile').addEventListener('change', handleImportFile);
         document.getElementById('exportProjectBtn').addEventListener('click', exportToProject);
         document.getElementById('viewExportsBtn').addEventListener('click', viewExports);
+        document.getElementById('chooseExportsDirBtn').addEventListener('click', async () => {
+            if(window.electronAPI && window.electronAPI.chooseExportsDir){
+                const dir = await window.electronAPI.chooseExportsDir();
+                if(dir){
+                    localStorage.setItem('exportsDir', dir);
+                    alert('Dossier exports choisi : ' + dir);
+                }
+            } else alert('Choix de dossier disponible uniquement dans l\'application installée.');
+        });
 
         // Initialize
         // Load saved rhythms from localStorage
@@ -631,18 +645,38 @@
         }
 
         async function saveSequence(){
-            if(sequence.length === 0) return;
-            const name = prompt('Nommer ce rythme (optionnel) :','Rhythme ' + (new Date()).toLocaleString());
+            console.log('saveSequence called, sequence length=', sequence.length);
+            if(!Array.isArray(sequence) || sequence.length === 0){
+                alert('Aucune note à sauvegarder. Créez une séquence avant de sauvegarder.');
+                return;
+            }
+            let name;
+            try{
+                name = prompt('Nommer ce rythme (optionnel) :','Rhythme ' + (new Date()).toLocaleString());
+            }catch(e){
+                console.warn('Prompt annulé ou bloqué', e);
+                name = 'Rhythme ' + Date.now();
+            }
+
             const data = { name: name || 'Sans titre', created: Date.now(), seq: sequence };
-            if(!Array.isArray(savedRhythms)) savedRhythms = [];
-            savedRhythms.push(data);
-            localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
-            updateLoadButton();
+            try{
+                if(!Array.isArray(savedRhythms)) savedRhythms = [];
+                savedRhythms.push(data);
+                localStorage.setItem('savedRhythms', JSON.stringify(savedRhythms));
+                updateLoadButton();
+                console.log('Saved to localStorage, count=', savedRhythms.length);
+            }catch(err){
+                console.error('Erreur en sauvegardant localStorage', err);
+                alert('Erreur en sauvegardant localement: '+err.message);
+                return;
+            }
 
             // Also attempt to export this saved rhythm to the project's exports folder
             try{
                 const filename = (name ? name.replace(/[^a-z0-9-_\.]/gi,'_') : 'rhythm') + '_' + Date.now() + '.json';
-                await exportSingleSavedRhythm(filename, data);
+                console.log('Attempting exportSingleSavedRhythm to filename=', filename);
+                const res = await exportSingleSavedRhythm(filename, data);
+                console.log('exportSingleSavedRhythm result=', res);
             }catch(err){
                 console.warn('saveSequence: export réseau échoué:', err);
                 // user already has a local copy in localStorage; optionally notify
@@ -846,6 +880,19 @@
                 return;
             }
 
+            // If running inside Electron, write directly to disk using electronAPI
+            if(window.electronAPI && window.electronAPI.saveExport){
+                const exportsDir = localStorage.getItem('exportsDir') || null;
+                const resp = await window.electronAPI.saveExport({ filename, data, exportsDir });
+                if(resp && resp.ok){
+                    alert('Exporté localement vers : ' + resp.path);
+                    return;
+                } else {
+                    alert('Erreur écriture locale: ' + (resp ? resp.error : 'inconnue'));
+                    // fallthrough to network attempts
+                }
+            }
+
             // Try localhost helper server first, then same-origin as fallback.
             const endpoints = [
                 'http://localhost:50056/save-export',
@@ -879,6 +926,14 @@
             const data = JSON.stringify(rhythmObj, null, 2);
             // Reuse exportToProject's internal logic by calling clientDownload or posting to endpoints
             // We'll attempt the same endpoints as exportToProject
+            // If running inside Electron, write directly to disk using electronAPI
+            if(window.electronAPI && window.electronAPI.saveExport){
+                const exportsDir = localStorage.getItem('exportsDir') || null;
+                const resp = await window.electronAPI.saveExport({ filename, data, exportsDir });
+                if(resp && resp.ok) return;
+                // else fallthrough to network/download
+            }
+
             if(window.location.hostname && window.location.hostname.endsWith('.github.io')){
                 clientDownload(filename, data);
                 return;

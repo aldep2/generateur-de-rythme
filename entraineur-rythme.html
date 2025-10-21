@@ -225,11 +225,22 @@
         // Resolve relative image paths to absolute URLs so images load correctly
         // when the page is served from a subpath (GitHub Pages etc.).
         try{
+            // Determine repo root segment (e.g. '/generateur-de-rythme/') if present
+            const parts = window.location.pathname.split('/');
+            const repoRoot = (parts.length > 1 && parts[1]) ? ('/' + parts[1] + '/') : '/';
             Object.keys(noteImageMap).forEach(k => {
                 const p = noteImageMap[k];
                 if(typeof p === 'string' && p.length > 0 && !p.startsWith('http') && !p.startsWith('data:') && !p.startsWith('blob:')){
                     try{
-                        noteImageMap[k] = new URL(p, window.location.href).href;
+                        // First try relative to current document
+                        let url = new URL(p, window.location.href).href;
+                        // If the host is github.io and the resolved URL doesn't exist (404),
+                        // using a repo-root-prefixed path is more reliable. We can't check 404
+                        // here, so proactively build a repo-root based URL for GitHub Pages.
+                        if(window.location.hostname.endsWith('.github.io')){
+                            url = window.location.origin + repoRoot + p.replace(/^\.\/?/, '');
+                        }
+                        noteImageMap[k] = url;
                     }catch(e){ /* ignore, keep original */ }
                 }
             });

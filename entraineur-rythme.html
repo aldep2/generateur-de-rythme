@@ -183,6 +183,7 @@
             { name: 'Triolet croches', duration: 1/3, symbol: '³♪', category: 'triplet', color: 'from-orange-500 to-orange-600' },
             { name: 'Triolet doubles', duration: 1/6, symbol: '³♬', category: 'triplet', color: 'from-orange-500 to-orange-600' },
             { name: 'Triolet blanches', duration: 4/3, symbol: '³𝅗𝅥', category: 'triplet', color: 'from-orange-500 to-orange-600' },
+            { name: 'Swing (croche)', duration: 1, symbol: '𝆭', category: 'advanced', color: 'from-pink-500 to-pink-600', isSwing: true },
             { name: 'Silence ronde', duration: 4, symbol: '𝄻', isRest: true, category: 'rest', color: 'from-gray-500 to-gray-600' },
             { name: 'Silence blanche', duration: 2, symbol: '𝄼', isRest: true, category: 'rest', color: 'from-gray-500 to-gray-600' },
             { name: 'Silence noire', duration: 1, symbol: '𝄽', isRest: true, category: 'rest', color: 'from-gray-500 to-gray-600' },
@@ -209,6 +210,8 @@
             'Triolet croches': 'img/triolet de croche.jpg',
             'Triolet doubles': 'img/triolet de double croche.jpg',
             'Triolet blanches': 'img/triolet de blanche.jpg',
+            // Swing image
+            'Swing (croche)': 'img/swing.jpg',
             // Rests: use the specific images you added
             'Silence ronde': 'img/pause.jpg',
             'Silence blanche': 'img/demie-pause.jpg',
@@ -359,9 +362,23 @@
             const events = [];
             let currentSeconds = 0;
             const beatSec = 60 / tempo;
+            // Expand sequence into timed events. If a note has isSwing=true, expand it into
+            // two sub-events long+short with ratio 2/3 and 1/3 of the note's duration.
             sequence.forEach(n => {
-                if (!n.isRest) events.push([currentSeconds, n]);
-                currentSeconds += n.duration * beatSec;
+                if (n.isSwing) {
+                    // treat the swing element as a single beat-group (n.duration in beats)
+                    const longPart = n.duration * (2/3);
+                    const shortPart = n.duration * (1/3);
+                    // push first (long)
+                    events.push([currentSeconds, {...n, duration: longPart}]);
+                    currentSeconds += longPart * beatSec;
+                    // push second (short)
+                    events.push([currentSeconds, {...n, duration: shortPart}]);
+                    currentSeconds += shortPart * beatSec;
+                } else {
+                    if (!n.isRest) events.push([currentSeconds, n]);
+                    currentSeconds += n.duration * beatSec;
+                }
             });
 
             if (events.length === 0) {

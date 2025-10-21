@@ -2,6 +2,24 @@
   "name": "entraineur-rythme-electron",
   "version": "0.1.0",
   "main": "main.js",
+  "build": {
+    "files": [
+      "**/*",
+      "../entraineur-rythme.html",
+      "../img/**"
+    ]
+    ,
+    "extraResources": [
+      {
+        "from": "../entraineur-rythme.html",
+        "to": "entraineur-rythme.html"
+      },
+      {
+        "from": "../img",
+        "to": "img"
+      }
+    ]
+  },
   "scripts": {
     "start": "electron . --no-sandbox",
     "pack": "electron-builder --dir",

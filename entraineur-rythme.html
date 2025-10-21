@@ -222,6 +222,19 @@
             // fallback images can be added here when available
         };
 
+        // Resolve relative image paths to absolute URLs so images load correctly
+        // when the page is served from a subpath (GitHub Pages etc.).
+        try{
+            Object.keys(noteImageMap).forEach(k => {
+                const p = noteImageMap[k];
+                if(typeof p === 'string' && p.length > 0 && !p.startsWith('http') && !p.startsWith('data:') && !p.startsWith('blob:')){
+                    try{
+                        noteImageMap[k] = new URL(p, window.location.href).href;
+                    }catch(e){ /* ignore, keep original */ }
+                }
+            });
+        }catch(e){ console.warn('Could not resolve image paths', e); }
+
         const exercises = [
             { name: '4 Noires (Base)', notes: ['Noire','Noire','Noire','Noire','Noire','Noire','Noire','Noire'] },
             { name: 'Blanches', notes: ['Blanche','Blanche','Blanche','Blanche'] },

@@ -613,8 +613,22 @@
         document.getElementById('exportBtn').addEventListener('click', clientExportAll);
         document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
         document.getElementById('importFile').addEventListener('change', handleImportFile);
-        document.getElementById('exportProjectBtn').addEventListener('click', exportToProject);
-        document.getElementById('viewExportsBtn').addEventListener('click', viewExports);
+
+        // Detect Electron environment (preload exposes electronAPI)
+        const isElectron = (typeof window !== 'undefined' && !!window.electronAPI);
+
+        // Export -> project and View exports are relevant for the web/server workflow.
+        // Hide them when running inside the Electron desktop app where native export is used.
+        const exportProjectBtnEl = document.getElementById('exportProjectBtn');
+        const viewExportsBtnEl = document.getElementById('viewExportsBtn');
+
+        if(isElectron){
+            if(exportProjectBtnEl) exportProjectBtnEl.style.display = 'none';
+            if(viewExportsBtnEl) viewExportsBtnEl.style.display = 'none';
+        } else {
+            if(exportProjectBtnEl) exportProjectBtnEl.addEventListener('click', exportToProject);
+            if(viewExportsBtnEl) viewExportsBtnEl.addEventListener('click', viewExports);
+        }
         document.getElementById('chooseExportsDirBtn').addEventListener('click', async () => {
             if(window.electronAPI && window.electronAPI.chooseExportsDir){
                 const dir = await window.electronAPI.chooseExportsDir();

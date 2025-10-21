@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" aria-labelledby="title" role="img">
+  <title id="title">Swing - paire de croches</title>
+  <rect width="100%" height="100%" fill="none"/>
+  <!-- Two eighth notes beamed together -->
+  <!-- Left note head -->
+  <g transform="translate(36,120)">
+    <ellipse rx="18" ry="12" cx="0" cy="0" fill="#000" transform="rotate(-20)"/>
+    <!-- stem -->
+    <rect x="12" y="-48" width="4" height="56" fill="#000" transform="rotate(0)"/>
+    <!-- flag/beam will be drawn as beam connecting stems -->
+  </g>
+
+  <!-- Right note head -->
+  <g transform="translate(100,100)">
+    <ellipse rx="18" ry="12" cx="0" cy="0" fill="#000" transform="rotate(-20)"/>
+    <rect x="12" y="-68" width="4" height="76" fill="#000" transform="rotate(0)"/>
+  </g>
+
+  <!-- Beam connecting stems -->
+  <path d="M58,72 L58,76 L140,36 L140,32 Z" fill="#000" transform="translate(0,28)" />
+
+  <!-- Optional: small shadow under heads to look nicer -->
+  <ellipse cx="36" cy="132" rx="22" ry="6" fill="#000" opacity="0.06" />
+  <ellipse cx="100" cy="112" rx="22" ry="6" fill="#000" opacity="0.06" />
+
+</svg>

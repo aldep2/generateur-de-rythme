@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Entraîneur de Rythme
+Comment=Créer et pratiquer des rythmes (Entraîneur de Rythme)
+Exec=/home/depre/a/electron-app/dist/entraineur-rythme-electron-0.1.0.AppImage
+Icon=entraineur-rythme
+Type=Application
+Terminal=false
+Categories=Audio;Education;Music;
+StartupWMClass=entraineur-rythme-electron

@@ -12,9 +12,17 @@ function createWindow() {
       nodeIntegration: false,
     }
   });
-
-  // Load the app from the project root HTML
-  win.loadFile(path.join(__dirname, '..', 'entraineur-rythme.html'));
+  // Load the app HTML. When running from a packaged build, the HTML
+  // will be inside the app's asar and __dirname already points there.
+  // When running in development, the HTML lives in the project root.
+  if (app.isPackaged) {
+    // When packaged, we copy the HTML into resources (extraResources).
+    // Use process.resourcesPath which points to the resources directory.
+    win.loadFile(path.join(process.resourcesPath, 'entraineur-rythme.html'));
+  } else {
+    // dev: project layout has main.js in electron-app/, HTML one level up
+    win.loadFile(path.join(__dirname, '..', 'entraineur-rythme.html'));
+  }
 }
 
 app.whenReady().then(() => {
